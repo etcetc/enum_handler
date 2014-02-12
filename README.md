@@ -58,4 +58,4 @@ Now you can use the same formalism with the set as with the individual attribute
 
  
 ## Note
-defin_enum creates a class variable eh_params in the including class.  This is used to save various characteristics of the enums that are defined.  
+defin\_enum creates a class variable *eh\_params* in the including class.  This is used to save various characteristics of the enums that are defined.  
