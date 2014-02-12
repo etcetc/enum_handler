@@ -12,7 +12,7 @@ module ActiveRecord
       unless method_defined?(:sanitize_sql_with_enum_extensions)
         # logger.tmp_debug("Extending santize_sql with enum extensions")
         def sanitize_sql_with_enum_extensions(conditions, *args)      
-          if !conditions.blank? && self.respond_to?(:has_enums) && self.has_enums
+          if !conditions.blank? && self.respond_to?(:has_enums?) && self.has_enums?
             # Supports conditions like: :key  => :value, and :key => [:value1,:value2]
             # logger.tmp_debug("Called sanitize_sql_with_enum_extensions with conditions #{conditions.inspect}")
 
@@ -77,7 +77,7 @@ module ActiveRecord
       # This does seem to work with Rails 3.2
       unless method_defined?(:replace_bind_variables_with_enum_extensions)
         def replace_bind_variables_with_enum_extensions(statement,values)
-          if self.respond_to?(:has_enums) && self.has_enums
+          if self.respond_to?(:has_enums?) && self.has_enums?
             segments = statement.split(/\(\s*\?\s*\)/).map { |r| r.split('?')}.flatten
             # logger.tmp_debug("segments = #{segments.inspect}")
             new_values = []
@@ -126,7 +126,7 @@ module ActiveRecord
       # This is for an update command, where we're setting the value
       unless method_defined?(:sanitize_sql_hash_for_assignment_with_enum_extensions)
         def sanitize_sql_hash_for_assignment_with_enum_extensions(attrs)
-          if self.respond_to?(:has_enums) && self.has_enums 
+          if self.respond_to?(:has_enums?) && self.has_enums?
             attrs = attrs.inject({}) { |r,(attr,value)| 
               r.merge( attr => enum_defined_for?(attr) && Symbol === value ? db_code(attr,value,false) : value)
             }
@@ -153,7 +153,7 @@ module ActiveRecord
           # Just pass the existing attributes, don't throw up
           begin
             myKlass = unquote(table_name).classify.constantize
-            if myKlass.respond_to?(:has_enums) && myKlass.has_enums 
+            if myKlass.respond_to?(:has_enums?) && myKlass.has_enums?
               attrs = attrs.inject({}) { |r,(attr,value)| 
                 r.merge( attr => myKlass.enum_defined_for?(attr) && Symbol === value ? myKlass.db_code(attr,value,true) : value)
               }
@@ -186,10 +186,10 @@ module ActiveRecord
     # This is for getting the where clause to work for Rails 3
     # Note that there is a problem w/ the way relation delegates to the enclosing class (i.e. the ActiveRecord class)
     # in that it builds the method via method_missing.  So the first time it sees respond_to?  it generates it
-    # but the has_enums is not defined
+    # but the has_enums? is not defined
     def build_where_with_enum_extensions(opts, other = [])
       if Hash === opts
-        if self.respond_to?(:has_enums) && self.has_enums 
+        if self.respond_to?(:has_enums?) && self.has_enums? 
           opts = opts.inject({}) { |r,(attr,value)| 
             r.merge( attr => enum_defined_for?(attr) && Symbol === value ? db_code(attr,value,true) : value)
           }

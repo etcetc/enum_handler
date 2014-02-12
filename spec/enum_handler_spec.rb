@@ -28,13 +28,13 @@ describe "EnumHandler" do
     end    
   end
   
-  describe "When asigning to an enum " do
-    it "only valid values should be accepted" do
+  describe "When asigning to an enumed attribute " do
+    it "should only accept valid values " do
       expect { User.new status: :condition }.to raise_error
       expect { User.new status: :active}.not_to raise_error
     end
     
-    it "underlying attribute value should match the encoded enum value" do
+    it "should set the encoded enum value to the attribute" do
       u = User.new status: :active
       expect(u.read_attribute :status).to eq("active")
       b = Book.new condition: :used
@@ -69,12 +69,12 @@ describe "EnumHandler" do
     it "should create a relation" do
       expect(User.active.is_a?(ActiveRecord::Relation)).to be true
     end
-    it "based upon enum values should return valid values" do
+    it "should return valid records where the attribute matches the scoped enum value " do
       expect(User.active.length).to eq(3)
       expect(User.suspended.length).to eq(2)
       expect(User.not_active.length).to eq(3)
     end
-    it "for count based upon enum values should return valid values " do
+    it "should return the correct count where attribute matches the scoped enum value " do
       expect(User.active.count).to eq(3)
     end
   end
