@@ -9,7 +9,7 @@ Gem::Specification.new do |s|
   s.version     = EnumHandler::VERSION
   s.authors     = ["Farhad Farzaneh"]
   s.email       = ["ff@onebeat.com"]
-  s.homepage    = "TODO"
+  s.homepage    = ""
   s.summary     = "Provides functionality relating to handling of enums used in ActiveRecord models"
   s.description = "Please see Readme file"
 
