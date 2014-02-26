@@ -81,18 +81,8 @@
 require 'active_record'
 module EnumHandler
   module Base
-    puts "Loading EnumHandler::Base"
-    
-    # _my_dir = File.dirname(__FILE__)
-    # require "#{_my_dir}/enum_handler/mock_active_record"
-    # require "#{_my_dir}/enum_handler/active_record_ext"
-  
-    # All of these methods should be put into a single variable so the 
-    # namespace isn't polluted
-    def self.define_state_variables(base)
-      base.extend ClassMethods
-      # db_codes contains the mappings from the symbol to the underlying DB representation 
-      base.send(:cattr_accessor, :eh_params)
+
+    def self.define_state_variable(base)
       # eh_params has the following keys
       # :has_enums: Set to true if an enum is actually defined  with this class
       # :db_codes: codes that map from the attribute value to the code stored in the DB
@@ -438,12 +428,14 @@ module EnumHandler
             key_values_hash[key_attribute_value.to_s] = normalize_values_to_hash(values)
           end
         }      
-        self.self.eh_params[:keyed_db_codes] ||= {}
-        self.self.eh_params[:keyed_db_codes][attribute.to_s] ||= {}
-        self.self.eh_params[:keyed_db_codes][attribute.to_s].merge!(key_values_hash)
+        self.eh_params[:keyed_db_codes] ||= {}
+        self.eh_params[:keyed_db_codes][attribute.to_s] ||= {}
+        self.eh_params[:keyed_db_codes][attribute.to_s].merge!(key_values_hash)
         self.eh_params[:attribute_options] = {}
         self.eh_params[:attribute_options][attribute.to_s] = {}
         self.eh_params[:attribute_options][attribute.to_s][:strict] = options.has_key?(:strict) ? options[:strict] : true
+
+        # Define the various choices 
         class_eval(<<-END, __FILE__, __LINE__
         class #{attribute.to_s.camelize}
           attr_accessor :id,:name
@@ -454,12 +446,12 @@ module EnumHandler
         end
 
         def self.#{attribute}_choices_for_key(key)
-          self.self.eh_params[:keyed_db_codes]['#{attribute}'][key.to_s].collect { |name,id| #{attribute.to_s.camelize}.new(id,name) }.sort { |a,b| a.id <=> b.id }
+          self.eh_params[:keyed_db_codes]['#{attribute}'][key.to_s].collect { |name,id| #{attribute.to_s.camelize}.new(id,name) }.sort { |a,b| a.id <=> b.id }
         end
 
         def self.#{attribute}_choices_list_for_key(key,options={})
           key = key.to_s
-          r = self.self.eh_params[:keyed_db_codes]['#{attribute}'][key].keys
+          r = self.eh_params[:keyed_db_codes]['#{attribute}'][key].keys
           r = r.map{ |v| humanize(v) } if options[:humanize]
           r
         end
@@ -467,28 +459,28 @@ module EnumHandler
         END
         )
 
-        # puts "In #{self}: Creating db code #{attribute} for context #{context}: #{self.self.eh_params[:keyed_db_codes].object_id}: #{self.self.eh_params[:keyed_db_codes].inspect}"
+        # puts "In #{self}: Creating db code #{attribute} for context #{context}: #{self.eh_params[:keyed_db_codes].object_id}: #{self.eh_params[:keyed_db_codes].inspect}"
         # Note that below, the key represents the value of the key, and the symbol_represents the symbol that we're trying
         # to set the attribute to
         class_eval(<<-END,__FILE__, __LINE__
         def self.validate_keyed_#{attribute.to_s}_value(key,symbol_value)
           # If this key is not keyed, return false indicating that the key is not validated
           key = key.to_s
-          return false unless self.self.eh_params[:keyed_db_codes]['#{attribute}'].has_key?(key)
-          raise("Illegal #{attribute} key specified (" + key + ") - valid keys are " + self.self.eh_params[:keyed_db_codes]['#{attribute}'].keys.join(',')) unless self.self.eh_params[:keyed_db_codes]['#{attribute}'].has_key?(key)
-          raise("Illegal #{attribute} value specified (" + symbol_value.to_s + ") - valid values are " + self.self.eh_params[:keyed_db_codes]['#{attribute}'][key].keys.join(',')) unless self.self.eh_params[:keyed_db_codes]['#{attribute}'][key] && self.self.eh_params[:keyed_db_codes]['#{attribute}'][key].has_key?(symbol_value.to_sym)
+          return false unless self.eh_params[:keyed_db_codes]['#{attribute}'].has_key?(key)
+          raise("Illegal #{attribute} key specified (" + key + ") - valid keys are " + self.eh_params[:keyed_db_codes]['#{attribute}'].keys.join(',')) unless self.eh_params[:keyed_db_codes]['#{attribute}'].has_key?(key)
+          raise("Illegal #{attribute} value specified (" + symbol_value.to_s + ") - valid values are " + self.eh_params[:keyed_db_codes]['#{attribute}'][key].keys.join(',')) unless self.eh_params[:keyed_db_codes]['#{attribute}'][key] && self.eh_params[:keyed_db_codes]['#{attribute}'][key].has_key?(symbol_value.to_sym)
           true
         end
         # private_class_method :validate_#{attribute.to_s}_value
 
         def self.db_#{attribute}_code(symbol_value,key)
           key = key.to_s
-          validate_keyed_#{attribute}_value(key,symbol_value.to_sym) ? self.self.eh_params[:keyed_db_codes]['#{attribute}'][key][symbol_value.to_sym] : symbol_value
+          validate_keyed_#{attribute}_value(key,symbol_value.to_sym) ? self.eh_params[:keyed_db_codes]['#{attribute}'][key][symbol_value.to_sym] : symbol_value
         end
 
         def self.db_#{attribute}_value(code,key)
           key = key.to_s
-          self.self.eh_params[:keyed_db_codes]['#{attribute}'][key].key(code)
+          self.eh_params[:keyed_db_codes]['#{attribute}'][key].key(code)
         end
 
         END
@@ -496,7 +488,7 @@ module EnumHandler
 
         module_eval(<<-END, __FILE__, __LINE__
         define_method(attribute) {
-          eval %{ self.self.eh_params[:keyed_db_codes]['#{attribute}'][read_attribute(self.eh_params[:key_attribute])] ? self.self.eh_params[:keyed_db_codes]['#{attribute}'][read_attribute(self.eh_params[:key_attribute])].key(read_attribute(attribute.to_sym)) : read_attribute(attribute) }  
+          eval %{ self.eh_params[:keyed_db_codes]['#{attribute}'][read_attribute(self.eh_params[:key_attribute])] ? self.eh_params[:keyed_db_codes]['#{attribute}'][read_attribute(self.eh_params[:key_attribute])].key(read_attribute(attribute.to_sym)) : read_attribute(attribute) }  
         }
 
         define_method(attribute.to_s+'=') { |value| 
@@ -507,7 +499,7 @@ module EnumHandler
           else
             key=read_attribute(key_attribute)
             keyed = self.class.validate_keyed_#{attribute}_value(key,value) 
-            eval " write_attribute(attribute.to_sym,keyed ? (self.self.eh_params[:keyed_db_codes]['#{attribute}'][key.to_s][value.to_sym] || (!self.eh_params[:attribute_options][attribute.to_s][:strict] && value)): value )";
+            eval " write_attribute(attribute.to_sym,keyed ? (self.eh_params[:keyed_db_codes]['#{attribute}'][key.to_s][value.to_sym] || (!self.eh_params[:attribute_options][attribute.to_s][:strict] && value)): value )";
           end
         }
 
@@ -520,7 +512,7 @@ module EnumHandler
 
         def self.keyed_db_code(attribute,value,key)
           key = key.to_s
-          self.self.eh_params[:keyed_db_codes][attribute.to_s][key.to_s][value]
+          self.eh_params[:keyed_db_codes][attribute.to_s][key.to_s][value]
         end
 
       end
@@ -559,6 +551,7 @@ module EnumHandler
         end
         context
       end
+      private :eh_evaluation_context
     end
     
   end

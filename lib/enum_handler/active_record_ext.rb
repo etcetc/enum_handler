@@ -184,15 +184,21 @@ module ActiveRecord
     private
     
     # This is for getting the where clause to work for Rails 3
-    # Note that there is a problem w/ the way relation delegates to the enclosing class (i.e. the ActiveRecord class)
-    # in that it builds the method via method_missing.  So the first time it sees respond_to?  it generates it
-    # but the has_enums? is not defined
+    # Note that there is a problem w/ the way relation delegates to the enclosing class (i.e. the ActiveRecord subclass)
+    # in that it builds the method via method_missing and then delegates to the AR subclass.  
+    # However, when it hits an AR subclasses that does not support has_enums?, it still thinks it
+    # can delegate to it, but in fact it can't and we get the has_enums? error
+    # Quick fix is to include enum_handler in every class even if it isn't used
     def build_where_with_enum_extensions(opts, other = [])
       if Hash === opts
-        if self.respond_to?(:has_enums?) && self.has_enums? 
-          opts = opts.inject({}) { |r,(attr,value)| 
-            r.merge( attr => enum_defined_for?(attr) && Symbol === value ? db_code(attr,value,true) : value)
-          }
+        begin
+          if self.respond_to?(:has_enums?) && self.has_enums? 
+            opts = opts.inject({}) { |r,(attr,value)| 
+              r.merge( attr => enum_defined_for?(attr) && Symbol === value ? db_code(attr,value,true) : value)
+            }
+          end
+        rescue
+          puts "WARN: has_enums? called but not defined for #{self.klass.name}"
         end
       end
       build_where_without_enum_extensions(opts,other)
