@@ -187,6 +187,7 @@ module EnumHandler
           # Returns the list of possible enum values
           # options:
           #  :include_sets => true: also add the sets as independent entries
+          #  :set => set_symbol: returns only the choices for that set
           def choices_list(attribute,options={})
             if options[:set]
               r= Array(options[:set]).map { |set| self.eh_params[:enum_set_mappings]['#{context}'][attribute.to_s][set] }.flatten.uniq
@@ -374,7 +375,7 @@ module EnumHandler
           value.map { |v| db_code(attribute,v,include_sets)}.flatten.uniq
         else
           context = self.eh_params[:enum_contexts][attribute.to_s]
-          if self.eh_params[:db_codes][context].has_key?(attribute.to_s) 
+          if context && self.eh_params[:db_codes][context].has_key?(attribute.to_s) 
             v = self.eh_params[:db_codes][context][attribute.to_s][dehumanize(value)]
             if v.nil?
               if include_sets and self.eh_params[:enum_set_mappings][context] and self.eh_params[:enum_set_mappings][context][attribute.to_s] and values=self.eh_params[:enum_set_mappings][context][attribute.to_s][value.to_sym]

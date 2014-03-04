@@ -155,7 +155,7 @@ module ActiveRecord
             myKlass = unquote(table_name).classify.constantize
             if myKlass.respond_to?(:has_enums?) && myKlass.has_enums?
               attrs = attrs.inject({}) { |r,(attr,value)| 
-                r.merge( attr => myKlass.enum_defined_for?(attr) && Symbol === value ? myKlass.db_code(attr,value,true) : value)
+                r.merge( attr => myKlass.enum_defined_for?(attr) && (Symbol === value || Array === value) ? myKlass.db_code(attr,value,true) : value)
               }
             end
           rescue 

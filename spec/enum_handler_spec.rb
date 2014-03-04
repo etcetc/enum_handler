@@ -4,28 +4,33 @@ describe "EnumHandler" do
     # Create the models
     class Book < ActiveRecord::Base
       include EnumHandler
-      define_enum :condition, {mint: 0,used: 1,excellent: 2}, primary:true, sets: {primo: [:mint,:excellent]}
+      define_enum :condition, {mint: 0,used: 1,excellent: 2, almost_new: 3}, primary:true, sets: {primo: [:mint,:excellent,:almost_new]}
     end
     build_model_table(Book,condition: :integer,user_id: :integer)
     class User < ActiveRecord::Base
       include EnumHandler
       has_many :books
-      define_enum :status, [:active,:suspended,:terminated], primary: true, sets:{inactive: [:suspended,:terminated]}
+      define_enum :status, [:active,:registration_pending, :suspended,:terminated], primary: true, sets:{inactive: [:registration_pending, :suspended,:terminated]}
       define_enum :role, [:customer,:supplier]
     end
-    build_model_table(User,status: :string, role: :string)
-    3.times { User.create(status: :active, role: :customer) }
+    build_model_table(User,status: :string, role: :string, name: :string)
+    4.times { |i| User.create(status: :registration_pending, role: :customer, name: "Joe #{i}") }
+    3.times { |i| User.create(status: :active, role: :customer, name: "Fred #{i}") }
     2.times { User.create(status: :suspended, role: :supplier) }
     1.times { User.create(status: :terminated, role: :customer) }
     User.first.books << Book.create(condition: :mint)
     User.first.books << Book.create(condition: :mint)
     User.first.books << Book.create(condition: :used)
+    User.first.books << Book.create(condition: :almost_new)
   end
   
   describe "model setup" do
-    it "should have created 6 users" do 
-      expect(User.count).to  eq(6)
-    end    
+    it "should have created 10 users" do 
+      expect(User.count).to eq(10)
+    end
+    it "should have created 4 books" do
+      expect(Book.count).to eq(4)
+    end
   end
   
   describe "When asigning to an enumed attribute " do
@@ -72,7 +77,9 @@ describe "EnumHandler" do
     it "should return valid records where the attribute matches the scoped enum value " do
       expect(User.active.length).to eq(3)
       expect(User.suspended.length).to eq(2)
-      expect(User.not_active.length).to eq(3)
+      expect(User.registration_pending.length).to eq(4)
+      expect(User.not_active.sort_by(&:id)).to eq((User.registration_pending + User.suspended + User.terminated).sort_by(&:id))
+      expect((User.not_active + User.active).sort_by(&:id)).to eq(User.all)
     end
     it "should return the correct count where attribute matches the scoped enum value " do
       expect(User.active.count).to eq(3)
@@ -81,7 +88,7 @@ describe "EnumHandler" do
   
   describe "scoped querying for non-primary enums" do
     it "should support (attribute-name)_value and (attribute-name)_not_value nomenclature" do
-      expect(User.role_customer.length).to eq(4)
+      expect(User.role_customer.length).to eq(8)
       expect(User.role_not_customer.length).to eq(2)   
     end
   end
@@ -93,16 +100,34 @@ describe "EnumHandler" do
     end
   end
   
+  describe "to find valid enum values " do
+    it "should return an array of valid values when class is sent message with attribute name" do
+      expect(User.roles).to eq([:customer,:supplier])
+      expect(Book.conditions.sort).to eq([:mint,:used,:excellent, :almost_new].sort)
+      expect(Book.choices_list(:condition).sort).to eq([:mint,:used,:excellent, :almost_new].sort)
+    end
+    it "should return the set values if asked" do
+      expect(Book.conditions(set: :primo).sort).to eq([:mint,:excellent,:almost_new].sort)
+      expect(User.statuses(set: :inactive).sort).to eq([:suspended,:terminated,:registration_pending].sort)
+    end
+  end
+
   describe "where queries" do
     it "should substitute value for symoblic code in hash predicates" do
       expect(User.where(status: :active).length).to eq(3)
       expect(User.where(status: :active).to_sql).to match /status["'\\ ]*=["'\\ ]*active/
       expect(Book.where(condition: :used).to_sql).to match /condition["'\\ ]*=["'\\ ]*1/
+      expect(Book.where(condition: :almost_new).to_sql).to match /condition["'\\ ]*=["'\\ ]*3/
+      expect(User.where(status: :registration_pending).to_sql).to match /status["'\\ ]*=["'\\ ]*registration pending/
     end
     it "should substitute value for symoblic code in array predicates" do
       expect(User.where(["status = ?",:active]).length).to eq(3)
       expect(User.where(["status = ?",:active]).to_sql).to match /status["'\\ ]*=["'\\ ]*active/
       expect(Book.where(["condition = ?",:used]).to_sql).to match /condition["'\\ ]*=["'\\ ]*1/
+    end
+    it "should handle arrays of enum values" do
+      expect(User.where(status: [:active,:terminated]).count).to eq(4)
+      expect(User.where(status: [:active,:terminated])).to eq(User.active + User.terminated)
     end
   end
   
@@ -110,15 +135,32 @@ describe "EnumHandler" do
     it "should not be possible to assign a set value to the attribute" do
       expect{ User.new status: :inactive}.to raise_error
     end
-    it "should be able to reference a scoped set value and return all inclusive set value records" do
-      expect(User.inactive).to eq(User.suspended + User.terminated )
+    it "should be possible to reference a scoped set value and return all inclusive set value records" do
+      expect(User.inactive - (User.suspended + User.terminated + User.registration_pending)).to eq([])
     end
-    it "should be able to use sets in where clauses" do
-      expect(User.where(status: :inactive)).to eq(User.suspended + User.terminated )
-      expect(User.where(["status = ?",:inactive])).to eq(User.suspended + User.terminated )
+    it "should be possible to use sets in where clauses" do
+      expect(User.where(status: :inactive).sort_by(&:id)).to eq((User.suspended + User.terminated + User.registration_pending ).sort_by(&:id))
+      expect(User.where(status: :inactive).count).to eq(7)
+      expect(User.where(["status = ?",:inactive]).sort_by(&:id)).to eq(User.inactive.sort_by(&:id))
     end
-    it "should be able to negate set value" do
+    it "should be possible to negate set value" do
       expect(User.not_inactive.map(&:id)).to eq(User.active.map(&:id))
+    end
+    it "should be possible to see if a value matches if it's part of a set" do
+      expect(User.enum_matches?(:status,:suspended,:inactive)).to be true
+      expect(User.enum_matches?(:status,:terminated,:inactive)).to be true
+      expect(User.enum_matches?(:status,:active,:inactive)).to be false
+    end
+
+    it "should be possible to query subclasses withvalues of sets" do
+      expect(User.first.books.used.count).to eq(1)
+      expect(User.first.books.primo.count).to eq(3)
+    end
+  end
+
+  describe "When attribute is not enum'ed" do
+    it "should behave as if enum_handler not there" do
+      expect(User.db_code(:name,"fred")).to eq("fred")
     end
   end
 end
