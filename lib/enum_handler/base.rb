@@ -80,6 +80,10 @@
 
 require 'active_record'
 module EnumHandler
+  class SimpleObj
+    attr_reader :id, :name
+  end
+
   module Base
 
     def self.define_state_variable(base)
@@ -219,29 +223,18 @@ module EnumHandler
         # Define methods to get the various enum values the attribute can take
         # Do not to use these, instead use the choices_list option above
         # These will be DEPRECATED
-        class_eval <<-END, __FILE__, __LINE__
-        class #{attribute.to_s.camelize}
-          attr_accessor :id,:name
-          def initialize(id,name)
-            self.name = name;
-            self.id = id;
-          end
+        define_singleton_method("#{attribute}_choices") do |options={}|
+          choices_list(attribute,options).keys
+          # self.eh_params[:db_codes]['#{context}']['#{attribute}'].collect { |name,id| EnumHandler::SimpleObj.new(id,name) }.sort { |a,b| a.id <=> b.id }
         end
 
-        class << self
-          def #{attribute}_choices(options={})
-            choices_list('#{attribute}',options).keys
-            # self.eh_params[:db_codes]['#{context}']['#{attribute}'].collect { |name,id| #{attribute.to_s.camelize}.new(id,name) }.sort { |a,b| a.id <=> b.id }
-          end
+        # Return the choices as a list, suitable for presentation,for example
+        puts "Defining #{attribute}_choices_list"
+        define_singleton_method("#{attribute}_choices_list".to_sym) do |options={}|
+          choices_list(attribute,options)
+        end    
 
-          # Return the choices as a list, suitable for presentation,for example
-          def #{attribute}_choices_list(options={})
-            choices_list('#{attribute}',options)
-          end    
-
-          alias_method :#{attribute}.to_s.pluralize, :#{attribute}_choices_list
-        end
-        END
+        self.singleton_class.send(:alias_method, attribute.to_s.pluralize.to_sym, "#{attribute}_choices_list".to_sym)
 
 
         # Define the accessors for the attribute, e.g. for attribute 'status', define
@@ -308,30 +301,16 @@ module EnumHandler
         end
       
         # ================================================
-        # = Define class-level counters and named scopes =
+        # = Define class-level scopes =
         # ================================================
-        # The named scopes in Rails 2.0 are great.  They allow us to define common, readable things like
+        # Scopes allow us to define common, readable things like
         #   Myclass.active
-        # which returns all the items with status active, assuming status is alled :primary, or if not
+        # which returns all the items with status active, assuming status is tagged :primary options, or if not
         #   Myclass.status_active
-        # if it's not primary.  We also support the negation, such as
+        # We also support the negation, such as
         #   Myclass.not_active
         # and
         #   Myclass.status_not_active
-        # We also define counters that let us get counts for various conditions, for example, for status we get
-        #   Classname.count_with_status(:active), or even 
-        #   Classname.count_with_status_active (not receommended - will deprecate)
-        # In Rails 2.0 this no longer necessary because it's just as easy, and clear, to do 
-        #   Classname.status_active.count
-        # 
-
-        class_eval <<-EVAL_END, __FILE__, __LINE__
-        class<<self
-          def count_with_#{attribute}(v)
-            class_eval %{count(:conditions => {'#{attribute}'.to_sym => v})  }
-          end
-        end
-        EVAL_END
 
         if ActiveRecord::Base.respond_to?(:scope)
           (values_hash.keys + (options[:sets] ? options[:sets].keys : [])).each do |v|
@@ -341,10 +320,10 @@ module EnumHandler
                 scope "not_#{v}".to_sym, lambda {  where(["#{attribute} <> ?",db_code(attribute,v,true)]) }
               end
             else
-              class_eval <<-EVAL_END, __FILE__, __LINE__
-              scope "#{attribute}_#{v}".to_sym, lambda { where("#{attribute}".to_sym => db_code("#{attribute}",v,true)) }
-              scope "#{attribute}_not_#{v}".to_sym, lambda { where(["#{attribute} <> ?",db_code("#{attribute}",v,true)]) }
-              EVAL_END
+              class_eval do
+                scope "#{attribute}_#{v}".to_sym, lambda { where("#{attribute}".to_sym => db_code("#{attribute}",v,true)) }
+                scope "#{attribute}_not_#{v}".to_sym, lambda { where(["#{attribute} <> ?",db_code("#{attribute}",v,true)]) }
+              end
             end
           end
         end

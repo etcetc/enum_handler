@@ -1,6 +1,7 @@
 require_relative './enum_handler/active_record_ext'
 require_relative './enum_handler/base'
 require_relative './enum_handler/mock_active_record'
+require 'active_record'
 
 module EnumHandler
   
