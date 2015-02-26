@@ -16,8 +16,9 @@ Gem::Specification.new do |s|
   s.files = Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md"]
   s.test_files = Dir["test/**/*"]
 
-  s.add_dependency "rails", ">= 3.2.0"
-  s.add_dependency "rspec", "~> 2.6"
+  #  WARNING - enum_handler is not compatible with rails 4.0.x or 4.1.x, but it is compatible with 4.2.x
+  s.add_runtime_dependency "rails", "> 3.2.0"
 
+  s.add_development_dependency "rspec", "> 2.6"
   s.add_development_dependency "sqlite3"
 end
