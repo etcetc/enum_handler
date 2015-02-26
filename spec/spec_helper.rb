@@ -2,6 +2,7 @@ require 'rubygems'
 require 'active_record'
 require 'sqlite3'
 require 'rspec'
+require 'yaml'
 
 $:.unshift File.expand_path(File.dirname(__FILE__) + '/../lib')
 

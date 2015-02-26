@@ -65,7 +65,7 @@
 # 
 # This module creates a number of class and instance methods in the base "including" class
 # Class Methods
-#   <attribute_name>_choices: returns the attributes as an arry of a simple class, each of has only two attributes: id (code) and value(symbolic value)
+#   <attribute_name>_choices: returns the attributes as an array of a simple class, each of has only two attributes: id (code) and value(symbolic value)
 #   db_code(attribute_name,value): is the same as db_<attribute_name>_code
 #
 # Instances methods
@@ -188,10 +188,10 @@ module EnumHandler
         class_eval <<-END, __FILE__, __LINE__
         class << self
         
-          # Returns the list of possible enum values
+          # Returns an array of possible enum values
           # options:
           #  :include_sets => true: also add the sets as independent entries
-          #  :set => set_symbol: returns only the choices for that set
+          #  :set => set_symbol(s): returns only the choices for the indicated sets. 
           def choices_list(attribute,options={})
             if options[:set]
               r= Array(options[:set]).map { |set| self.eh_params[:enum_set_mappings]['#{context}'][attribute.to_s][set] }.flatten.uniq
@@ -205,7 +205,8 @@ module EnumHandler
           end
 
           # This is mainly useful for handling sets - it expands the set values
-          def enum_values(attribute,value,options={})
+          def enum_values(attribute,value_or_options,options={})
+            value = value_or_options.is_a?(Hash) ? nil : value_or_options
             if value
               if self.eh_params[:db_codes]['#{context}'][attribute.to_s][value] 
                 r = value
@@ -214,6 +215,8 @@ module EnumHandler
                 enum_values(attribute,value,options)
                 }.flatten
               end
+            else
+              # TBD: If no value is provided, just return the complete list
             end
             r
           end

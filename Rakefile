@@ -15,8 +15,6 @@ RDoc::Task.new(:rdoc) do |rdoc|
 end
 
 
-
-
 Bundler::GemHelper.install_tasks
 
 require 'rake/testtask'
@@ -28,5 +26,11 @@ Rake::TestTask.new(:test) do |t|
   t.verbose = false
 end
 
+
+require 'rspec/core/rake_task'
+ 
+RSpec::Core::RakeTask.new do |task|
+  task.rspec_opts = ['--color', '--format', 'doc']
+end
 
 task default: :test
