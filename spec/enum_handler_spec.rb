@@ -12,16 +12,30 @@ describe "EnumHandler" do
       has_many :books
       define_enum :status, [:active,:registration_pending, :suspended,:terminated], primary: true, sets:{inactive: [:registration_pending, :suspended,:terminated]}
       define_enum :role, [:customer,:supplier]
+      scope :with_name_like, lambda { |x| where("name like '%#{x}%'") }
     end
     build_model_table(User,status: :string, role: :string, name: :string)
     4.times { |i| User.create(status: :registration_pending, role: :customer, name: "Joe #{i}") }
     3.times { |i| User.create(status: :active, role: :customer, name: "Fred #{i}") }
-    2.times { User.create(status: :suspended, role: :supplier) }
+    2.times { |i| User.create(status: :suspended, role: :supplier, name: "Joe blow #{i}") }
     1.times { User.create(status: :terminated, role: :customer) }
     User.first.books << Book.create(condition: :mint)
     User.first.books << Book.create(condition: :mint)
     User.first.books << Book.create(condition: :used)
     User.first.books << Book.create(condition: :almost_new)
+
+
+    # We create this class to make sure that our enum_handler doesn't mess up normal searches
+    class NoEnum < ActiveRecord::Base
+      scope :with_name_like, lambda { |x| where("name LIKE '%#{x}%'") }
+      scope :with_status_value, lambda { |x| where(status: x)}
+    end
+
+    build_model_table(NoEnum,name: :string, status: :integer)
+    NoEnum.create(name: "item 1", status: 1)
+    NoEnum.create(name: "item 2", status: 2)
+    NoEnum.create(name: "item 1.1", status: 1)
+
   end
   
   describe "model setup" do
@@ -30,6 +44,9 @@ describe "EnumHandler" do
     end
     it "should have created 4 books" do
       expect(Book.count).to eq(4)
+    end
+    it "should have 3 created NoEnum objects" do
+      expect(NoEnum.count).to eq(3)
     end
   end
   
@@ -98,6 +115,19 @@ describe "EnumHandler" do
       expect(User.first.books.mint.length).to eq(2)
       expect(User.first.books.used.length).to eq(1)      
     end
+    it "should support compound scopes on a single class" do 
+      expect(User.active.role_customer.length).to eq(3)
+      expect(User.not_active.role_customer.length).to eq(5)
+      expect(User.active.role_supplier.length).to eq(0)
+    end
+    it "should play nice with predefined scopes that don't use enums" do 
+      expect(User.with_name_like("Joe").length).to eq(6)
+    end
+    it "should play nice with predefined scopes that use enums" do 
+      expect(User.role_supplier.with_name_like("Joe").length).to eq(2)
+      expect(User.with_name_like("Joe").role_supplier.length).to eq(2)
+    end
+
   end
   
   describe "to find valid enum values " do
@@ -138,6 +168,10 @@ describe "EnumHandler" do
     it "should be possible to reference a scoped set value and return all inclusive set value records" do
       expect(User.inactive - (User.suspended + User.terminated + User.registration_pending)).to eq([])
     end
+    it "should be possible to create compound scopes" do
+      expect(User.inactive.role_customer.length).to eq(5)
+    end
+
     it "should be possible to use sets in where clauses" do
       expect(User.where(status: :inactive).sort_by(&:id)).to eq((User.suspended + User.terminated + User.registration_pending ).sort_by(&:id))
       expect(User.where(status: :inactive).count).to eq(7)
@@ -161,6 +195,35 @@ describe "EnumHandler" do
   describe "When attribute is not enum'ed" do
     it "should behave as if enum_handler not there" do
       expect(User.db_code(:name,"fred")).to eq("fred")
+    end
+  end
+
+  describe "a class without enum_handler" do
+    it "should return correct results with all query" do
+      expect(NoEnum.count).to eq(3)
+      expect(NoEnum.all.length).to eq(3)
+    end
+    it "should return correct results with where query with hash predicate" do
+      expect(NoEnum.where(status: 2).length).to eq(1)
+      expect(NoEnum.where(status: 3).length).to eq(0)
+      expect(NoEnum.where(status: 1).length).to eq(2)
+      expect(NoEnum.where(name: "item 1").length).to eq(1)
+      expect(NoEnum.where(name: "item 1",status: 1).length).to eq(1)
+      expect(NoEnum.where(name: "item 1",status: 0).length).to eq(0)
+    end
+    it "should return correct results with where query with array predicate" do
+      expect(NoEnum.where(["status = ?", 2]).length).to eq(1)
+      expect(NoEnum.where(["status = ?", 3]).length).to eq(0)
+      expect(NoEnum.where(["status = ?", 1]).length).to eq(2)
+      expect(NoEnum.where(["name = ?","item 1"]).length).to eq(1)
+      expect(NoEnum.where(["name = ? and status = ?","item 1",1]).length).to eq(1)
+      expect(NoEnum.where(["name = ? and status = ?","item 1",0]).length).to eq(0)
+    end
+    it "should return correct results with scopes" do
+      expect(NoEnum.with_name_like("1").length).to eq(2)
+      expect(NoEnum.with_name_like("1").count).to eq(2)
+      expect(NoEnum.with_status_value(1).length).to eq(2)
+      expect(NoEnum.with_status_value(2).length).to eq(1)
     end
   end
 
