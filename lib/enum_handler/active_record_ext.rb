@@ -5,8 +5,8 @@ module ActiveRecord
 
     module ClassMethods
 
-      protected 
-      
+      protected
+
       # This does seem to work with Rails 3.2
       unless method_defined?(:replace_bind_variables_with_enum_extensions)
         def replace_bind_variables_with_enum_extensions(statement,values)
@@ -22,10 +22,10 @@ module ActiveRecord
               equality_operand = portion.match(/(<>|!=|=)$/) and $1
               translated_value = v
               if column_name = (m=portion.strip.match(/^\(*\s*(\S+\.)?(\S+)\b/i)) ? m[2].gsub('`','').to_sym : nil and enum_defined_for?(column_name)
-                includes_table_name =true if m[1] 
+                includes_table_name =true if m[1]
                 if ( v.is_a?(Array) )
                   translated_value = v.map{ |vi| vi.is_a?(Symbol) ? self.db_code(column_name,vi,true) : vi}.flatten.uniq
-                elsif v.is_a?(Symbol) 
+                elsif v.is_a?(Symbol)
                   # puts "translating #{v.inspect} to self.db_code(column_name.to_sym,v,true) }"
                   if v.to_s.index('!') == 0
                     # puts "reversing sense on ENTRY v=#{v.inspect}, segment = #{segment.inspect}"
@@ -33,7 +33,7 @@ module ActiveRecord
                     v = v.to_s[1..-1].intern
                     # puts "reversing sense on EXIT v=#{v.inspect}, segment = #{segment.inspect}"
                   end
-                  translated_value = self.db_code(column_name.to_sym,v,true) 
+                  translated_value = self.db_code(column_name.to_sym,v,true)
                 end
                 includes_table_name or segment.sub!(/\b#{column_name}\b/,"#{table_name}.#{column_name}")
                 # puts("segment = #{segment.inspect}, column_name = #{column_name.inspect}, v=#{v.inspect} => #{translated_value.inspect}")
@@ -60,7 +60,7 @@ module ActiveRecord
       unless method_defined?(:sanitize_sql_hash_for_assignment_with_enum_extensions)
         def sanitize_sql_hash_for_assignment_with_enum_extensions(attrs)
           if self.respond_to?(:has_enums?) && self.has_enums?
-            attrs = attrs.inject({}) { |r,(attr,value)| 
+            attrs = attrs.inject({}) { |r,(attr,value)|
               r.merge( attr => enum_defined_for?(attr) && Symbol === value ? db_code(attr,value,false) : value)
             }
           end
@@ -87,11 +87,11 @@ module ActiveRecord
           begin
             myKlass = unquote(table_name).classify.constantize
             if myKlass.respond_to?(:has_enums?) && myKlass.has_enums?
-              attrs = attrs.inject({}) { |r,(attr,value)| 
+              attrs = attrs.inject({}) { |r,(attr,value)|
                 r.merge( attr => myKlass.enum_defined_for?(attr) && (Symbol === value || Array === value) ? myKlass.db_code(attr,value,true) : value)
               }
             end
-          rescue 
+          rescue
           end
           sanitize_sql_hash_for_conditions_without_enum_extensions(attrs,table_name)
         end
@@ -115,18 +115,18 @@ module ActiveRecord
     extend ActiveSupport::Concern
 
     private
-    
+
     # This is for getting the where clause to work for Rails 3
     # Note that there is a problem w/ the way relation delegates to the enclosing class (i.e. the ActiveRecord subclass)
-    # in that it builds the method via method_missing and then delegates to the AR subclass.  
+    # in that it builds the method via method_missing and then delegates to the AR subclass.
     # However, when it hits an AR subclasses that does not support has_enums?, it still thinks it
     # can delegate to it, but in fact it can't and we get the has_enums? error
     # Quick fix is to include enum_handler in every class even if it isn't used
     def build_where_with_enum_extensions(opts, other = [])
       if Hash === opts
         begin
-          if self.respond_to?(:has_enums?) && self.has_enums? 
-            opts = opts.inject({}) { |r,(attr,value)| 
+          if self.respond_to?(:has_enums?) && self.has_enums?
+            opts = opts.inject({}) { |r,(attr,value)|
               r.merge( attr => enum_defined_for?(attr) && Symbol === value ? db_code(attr,value,true) : value)
             }
           end
@@ -134,6 +134,7 @@ module ActiveRecord
           puts "WARN: has_enums? called but not defined for #{self.klass.name}"
         end
       end
+      @arel = nil # Prevent: DEPRECATION WARNING: Modifying already cached Relation. The cache will be reset. Use a cloned Relation to prevent this warning
       build_where_without_enum_extensions(opts,other)
     end
     alias_method_chain :build_where, :enum_extensions
